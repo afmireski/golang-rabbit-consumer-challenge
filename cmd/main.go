@@ -42,7 +42,7 @@ func setupConsumer(env *stream.Environment, chDB chan MessageInput, chConsumer c
 		stream.NewConsumerOptions().
 			SetConsumerName("secmob_request_consumer").
 			SetCRCCheck(false).                             // Enable/Disable the CRC control.
-			SetOffset(stream.OffsetSpecification{}.Last())) // start consuming from the beginning
+			SetOffset(stream.OffsetSpecification{}.Next())) // start consuming from the beginning
 
 	if err != nil {
 		log.Fatalf("Falha ao criar consumidor: ", err)
@@ -65,7 +65,7 @@ func connectDatabase() *sql.DB {
 	return db
 }
 
-func saveDataDb(db *sql.DB, chDB <- chan MessageInput, chID chan int) {
+func saveDataDb(db *sql.DB, chDB <- chan MessageInput, chID chan int64) {
 	for {
 		select {
 			case data := <-chDB:
@@ -75,7 +75,7 @@ func saveDataDb(db *sql.DB, chDB <- chan MessageInput, chID chan int) {
 					log.Fatalf("Falha ao preparar o Insert: ", err)
 				}
 
-				_, err = stmtIns.Exec(data.Email, data.Name)
+				res, err := stmtIns.Exec(data.Email, data.Name)
 
 				if err != nil {
 					log.Fatalf("Falha ao executar o Insert: ", err)
@@ -83,30 +83,18 @@ func saveDataDb(db *sql.DB, chDB <- chan MessageInput, chID chan int) {
 
 				stmtIns.Close()
 
-				stmtId, err := db.Prepare("SELECT id FROM user ORDER BY id DESC limit 1")
-
-				if err != nil {
-					log.Fatalf("Falha ao preparar o Select: ", err)
-				}
-
-				var id int
-				err = stmtId.QueryRow().Scan(&id)
-
-				if err != nil {
-					log.Fatalf("Falha ao executar o Select: ", err)
-				}
-				chID <- id // Publica pra outra fila.
-
-				stmtId.Close()
+				id, err := res.LastInsertId()
+				
+				chID <-  id // Publica pra outra fila.
 		}
 	}
 }
 
-func publish(producer *stream.Producer, ch <-chan int) {
+func publish(producer *stream.Producer, ch <-chan int64) {
 	for {
 		select {
 			case id := <-ch:
-				message := amqp.NewMessage([]byte(strconv.Itoa(id)))
+				message := amqp.NewMessage([]byte(strconv.FormatInt(id, 10)))
 
 				err := producer.Send(message)
 
@@ -132,7 +120,7 @@ func main() {
 		log.Fatalf("Falha ao conectar no RabbitMQ: ", err)
 	}
 
-	idsChannel := make(chan int)
+	idsChannel := make(chan int64)
 	dbChannel := make(chan MessageInput)
 	consumerChannel := make(chan *stream.Consumer)
 
