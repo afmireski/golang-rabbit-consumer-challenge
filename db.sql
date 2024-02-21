@@ -1,3 +1,5 @@
+CREATE DATABASE `golang-rabbit`;
+
 CREATE TABLE
   `user` (
     `id` int NOT NULL AUTO_INCREMENT,
