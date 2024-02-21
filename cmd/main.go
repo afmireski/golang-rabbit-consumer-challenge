@@ -144,11 +144,11 @@ func main() {
 		log.Fatalf("Falha ao criar o producer: ", err)
 	}
 
-	go setupConsumer(env, dbChannel, consumerChannel)
+	go setupConsumer(env, dbChannel, consumerChannel) //T2
 
-	go saveDataDb(db, dbChannel, idsChannel)
+	go saveDataDb(db, dbChannel, idsChannel) // T1
 
-	publish(producer, idsChannel)
+	publish(producer, idsChannel) // T0
 
 	// fmt.Println("Press any key to stop ")
 	// _, _ = reader.ReadString('\n')
